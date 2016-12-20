@@ -371,8 +371,13 @@ exports.decodeEntities = function(text){
  * provided a hidden div will be inserted in the body of the page instead. The element will be removed when rendering is
  * completed.
  */
-var render = function(id, txt, cb, container){
+var render = function(id, txt, cb, container) {
+    _preRender(id, container);
+    _renderByType(id, txt);
+    return _postRenderGetSvgCode(id, cb);
+}
 
+function _preRender(id, container) {
     if(typeof container !== 'undefined'){
         container.innerHTML = '';
 
@@ -398,78 +403,85 @@ var render = function(id, txt, cb, container){
             .attr('xmlns','http://www.w3.org/2000/svg')
             .append('g');
     }
+}
 
+function _renderByType(id, txt) {
     window.txt = txt;
     txt = exports.encodeEntities(txt);
-    //console.warn('mermaid encode: ');
-    //console.warn(txt);
 
     var element = d3.select('#d'+id).node();
     var graphType = utils.detectType(txt);
-    var classes = {};
-    switch(graphType){
-        case 'gitGraph':
+  
+    _getRenderers(graphType)(id, txt, element);
+
+    d3.select('#d'+id).selectAll('foreignobject div').attr('xmlns','http://www.w3.org/1999/xhtml');
+}
+
+var _getRenderers = (function() {
+    function cloneCssStyle(element, classes) {
+        if(config.cloneCssStyles) {
+            utils.cloneCssStyles(element.firstChild, classes);
+        }
+    }
+    var renderers = {
+        'undefined': function() {
+        },
+        'gitGraph': function(id, txt, element) {
             config.flowchart.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
             gitGraphRenderer.setConf(config.gitGraph);
             gitGraphRenderer.draw(txt, id, false);
             //if(config.cloneCssStyles){
-                //classes = gitGraphRenderer.getClasses(txt, false);
+                //var classes = gitGraphRenderer.getClasses(txt, false);
                 //utils.cloneCssStyles(element.firstChild, classes);
             //}
-            break;
-        case 'graph':
+            cloneCssStyle(element, []);
+        },
+        'graph': function(id, txt, element) {
             config.flowchart.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
             flowRenderer.setConf(config.flowchart);
             flowRenderer.draw(txt, id, false);
-            if(config.cloneCssStyles){
-                classes = flowRenderer.getClasses(txt, false);
-                utils.cloneCssStyles(element.firstChild, classes);
-            }
-            break;
-        case 'dotGraph':
+            cloneCssStyle(element, flowRenderer.getClasses(txt, false));
+        },
+        'dotGraph': function(id, txt, element) {
             config.flowchart.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
             flowRenderer.setConf(config.flowchart);
             flowRenderer.draw(txt, id, true);
-            if(config.cloneCssStyles) {
-                classes = flowRenderer.getClasses(txt, true);
-                utils.cloneCssStyles(element.firstChild, classes);
-            }
-            break;
-        case 'sequenceDiagram':
+            cloneCssStyle(element, flowRenderer.getClasses(txt, true));
+        },
+        'sequenceDiagram': function(id, txt, element) {
             config.sequenceDiagram.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
             seq.setConf(config.sequenceDiagram);
             seq.draw(txt,id);
-            if(config.cloneCssStyles) {
-                utils.cloneCssStyles(element.firstChild, []);
-            }
-            break;
-        case 'gantt':
+            cloneCssStyle(element, []);
+        },
+        'gantt': function(id, txt, element) {
             config.gantt.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
             gantt.setConf(config.gantt);
             gantt.draw(txt,id);
-            if(config.cloneCssStyles) {
-                utils.cloneCssStyles(element.firstChild, []);
-            }
-            break;
-        case 'classDiagram':
+            cloneCssStyle(element, []);
+        },
+        'classDiagram': function(id, txt, element) {
             config.classDiagram.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
             classRenderer.setConf(config.classDiagram);
             classRenderer.draw(txt,id);
-            if(config.cloneCssStyles) {
-                utils.cloneCssStyles(element.firstChild, []);
-            }
-            break;
-        case 'info':
+            cloneCssStyle(element, []);
+        },
+        'info': function(id, txt, element) {
             config.info.arrowMarkerAbsolute = config.arrowMarkerAbsolute;
             info.draw(txt,id,exports.version());
-            if(config.cloneCssStyles) {
-                utils.cloneCssStyles(element.firstChild, []);
-            }
-            break;
-    }
+            cloneCssStyle(element, []);
+        }
+    };
+    return function(graphType) {
+        var renderer = renderers[graphType];
+        if (!renderer) {
+            renderer = renderers['undefined'];
+        }
+        return renderer;
+    };
+})();
 
-    d3.select('#d'+id).selectAll('foreignobject div').attr('xmlns','http://www.w3.org/1999/xhtml');
-
+function _postRenderGetSvgCode(id, cb) {
     var url =  '';
     if(config.arrowMarkerAbsolute){
         url =  window.location.protocol+'//'+window.location.host+window.location.pathname +window.location.search;
@@ -482,8 +494,6 @@ var render = function(id, txt, cb, container){
 
     svgCode = exports.decodeEntities(svgCode);
 
-    //console.warn('mermaid decode: ');
-    //console.warn(svgCode);
     //var he = require('he');
     //svgCode = he.decode(svgCode);
     if(typeof cb !== 'undefined'){
@@ -498,7 +508,7 @@ var render = function(id, txt, cb, container){
     }
 
     return svgCode;
-};
+}
 
 exports.render = function (id, text, cb, containerElement) {
     try{

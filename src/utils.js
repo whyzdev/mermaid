@@ -62,6 +62,9 @@ exports.detectType= detectType;
  * @param {object} Hash table of class definitions from the graph definition
  */
 var cloneCssStyles = function(svg, classes){
+    if (object.keys(classes).length===0) {
+      return
+    
     var usedStyles = '';
     var sheets = document.styleSheets;
     var rule;
